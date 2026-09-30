@@ -234,7 +234,25 @@ def test_dedication_uses_effective_revision_and_deny_overrides_allow():
         DedicationPolicy(2, 10, {"P": frozenset({"T1", "T2"})}, frozenset({("P", "T2")})),
     ]
     assert policy_decision("P", "T2", 5, policies).allowed
-    assert policy_decision("P", "T2", 15, policies).reasons == ("product_tool_explicitly_blocked",)
+    decision = policy_decision("P", "T2", 15, policies)
+    assert decision.reasons == ("product_tool_explicitly_blocked",)
+    assert decision.evidence["policy_revision"] == 2
+
+
+def test_dedication_same_effective_time_uses_revision_and_explicit_deny():
+    policies = [
+        DedicationPolicy(1, 10, {"P": frozenset({"T1", "T2"})}),
+        DedicationPolicy(2, 10, {"P": frozenset({"T1", "T2"})}, frozenset({("P", "T2")})),
+    ]
+    decision = policy_decision("P", "T2", 10, policies)
+    assert decision.reasons == ("product_tool_explicitly_blocked",)
+    assert decision.evidence == {"policy_revision": 2, "effective_at": 10}
+
+    duplicate_revisions = [
+        DedicationPolicy(2, 10, {"P": frozenset({"T2"})}),
+        DedicationPolicy(2, 10, {"P": frozenset({"T2"})}, frozenset({("P", "T2")})),
+    ]
+    assert policy_decision("P", "T2", 10, duplicate_revisions).reasons == ("product_tool_explicitly_blocked",)
 
 
 def test_contamination_matrix_is_symmetric_and_cleaning_changes_residuals():
@@ -339,6 +357,18 @@ def test_merge_and_commit_preserves_quantity_across_services():
 def test_dedicated_qualification_combines_both_policy_gates():
     decision = dedicated_qualification("P", "T", "C", 2, 10, [DedicationPolicy(1, 0, {"P": frozenset({"T"})})], [Qualification("T", "C", 2, 0, 20)])
     assert decision.allowed and decision.evidence["policy_revision"] == 1
+
+
+def test_dedicated_qualification_uses_policy_effective_at_revision_and_block():
+    policies = [
+        DedicationPolicy(2, 10, {"P": frozenset({"T"})}, frozenset({("P", "T")})),
+        DedicationPolicy(1, 10, {"P": frozenset({"T"})}),
+    ]
+    decision = dedicated_qualification(
+        "P", "T", "C", 2, 10, policies, [Qualification("T", "C", 2, 0, 20)]
+    )
+    assert decision.reasons == ("product_tool_explicitly_blocked",)
+    assert decision.evidence["policy_revision"] == 2
 
 
 def test_performance_summary_uses_filtered_takt_and_ordered_route_yield():

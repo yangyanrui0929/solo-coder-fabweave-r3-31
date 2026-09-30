@@ -23,11 +23,19 @@ def policy_decision(product: str, tool: str, at: int, policies: list[DedicationP
     active = [policy for policy in policies if policy.effective_at <= at]
     if not active:
         return deny("dedication_policy_missing")
-    policy = max(active, key=lambda item: item.effective_at)
-    evidence = {"policy_revision": policy.revision, "effective_at": policy.effective_at}
-    if (product, tool) in policy.blocked:
-        return deny("product_tool_explicitly_blocked", **evidence)
-    permitted = policy.allowed.get(product)
-    if permitted is not None and tool not in permitted:
-        return deny("tool_not_in_dedication_allow_list", **evidence)
-    return allow(**evidence)
+
+    def evaluate(policy: DedicationPolicy) -> Decision:
+        evidence = {"policy_revision": policy.revision, "effective_at": policy.effective_at}
+        if (product, tool) in policy.blocked:
+            return deny("product_tool_explicitly_blocked", **evidence)
+        permitted = policy.allowed.get(product)
+        if permitted is not None and tool not in permitted:
+            return deny("tool_not_in_dedication_allow_list", **evidence)
+        return allow(**evidence)
+
+    evaluated = [(policy, evaluate(policy)) for policy in active]
+    _, decision = max(
+        evaluated,
+        key=lambda item: (item[0].effective_at, item[0].revision, not item[1].allowed),
+    )
+    return decision
