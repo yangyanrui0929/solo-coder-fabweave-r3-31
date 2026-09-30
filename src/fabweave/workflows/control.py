@@ -241,8 +241,7 @@ def dedicated_qualification(
     dedication_policies: list[DedicationPolicy],
     qualifications: list[Qualification],
 ) -> Decision:
-    selected = max(dedication_policies, key=lambda policy: policy.effective_at)
-    dedication = policy_decision(product, tool_id, at, [selected])
+    dedication = policy_decision(product, tool_id, at, dedication_policies)
     qualification = qualification_decision(tool_id, chamber_id, recipe_revision, at, qualifications)
     return _combine([dedication, qualification])
 

@@ -237,6 +237,40 @@ def test_dedication_uses_effective_revision_and_deny_overrides_allow():
     assert policy_decision("P", "T2", 15, policies).reasons == ("product_tool_explicitly_blocked",)
 
 
+def test_dedication_breaks_same_instant_ties_by_revision_and_reports_adopted():
+    policies = [
+        DedicationPolicy(1, 10, {"P": frozenset({"T1", "T2"})}),
+        DedicationPolicy(2, 10, {"P": frozenset({"T1", "T2"})}, frozenset({("P", "T2")})),
+    ]
+    decision = policy_decision("P", "T2", 10, policies)
+    assert decision.reasons == ("product_tool_explicitly_blocked",)
+    assert decision.evidence["policy_revision"] == 2 and decision.evidence["effective_at"] == 10
+    allowed = policy_decision("P", "T1", 10, policies)
+    assert allowed.allowed and allowed.evidence["policy_revision"] == 2
+
+
+def test_dedicated_qualification_does_not_preselect_stale_policy():
+    policies = [
+        DedicationPolicy(1, 10, {"P": frozenset({"T"})}),
+        DedicationPolicy(2, 10, {"P": frozenset({"T"})}, frozenset({("P", "T")})),
+    ]
+    qualifications = [Qualification("T", "C", 2, 0, 20)]
+    decision = dedicated_qualification("P", "T", "C", 2, 10, policies, qualifications)
+    assert decision.reasons == ("product_tool_explicitly_blocked",)
+    assert decision.evidence["policy_revision"] == 2
+
+
+def test_dedicated_qualification_ignores_not_yet_effective_policy():
+    policies = [
+        DedicationPolicy(1, 0, {"P": frozenset({"T"})}),
+        DedicationPolicy(2, 50, {"P": frozenset()}, frozenset({("P", "T")})),
+    ]
+    qualifications = [Qualification("T", "C", 2, 0, 20)]
+    decision = dedicated_qualification("P", "T", "C", 2, 10, policies, qualifications)
+    assert decision.allowed and decision.evidence["policy_revision"] == 1
+
+
+
 def test_contamination_matrix_is_symmetric_and_cleaning_changes_residuals():
     matrix = {"CU": {"FE"}}
     assert incompatible_pairs({"CU", "FE"}, matrix) == (("CU", "FE"),)

@@ -23,7 +23,7 @@ def policy_decision(product: str, tool: str, at: int, policies: list[DedicationP
     active = [policy for policy in policies if policy.effective_at <= at]
     if not active:
         return deny("dedication_policy_missing")
-    policy = max(active, key=lambda item: item.effective_at)
+    policy = max(active, key=lambda item: (item.effective_at, item.revision))
     evidence = {"policy_revision": policy.revision, "effective_at": policy.effective_at}
     if (product, tool) in policy.blocked:
         return deny("product_tool_explicitly_blocked", **evidence)
